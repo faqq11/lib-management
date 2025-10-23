@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS books (
   title TEXT NOT NULL,
   author TEXT,
   category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL,
-  stock INTEGER NOT NULL DEFAULT 0,
+  stock INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 

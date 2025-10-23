@@ -3,7 +3,7 @@ package models
 import "time"
 
 type Book struct {
-    ID int `db:"id" json:"id"`
+    ID int `db:"id" json:"id,omitempty"`
     Title string `db:"title" json:"title"`
     Author string `db:"author" json:"author"`
     CategoryID *int `db:"category_id" json:"category_id"`

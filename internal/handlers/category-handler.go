@@ -27,14 +27,18 @@ func (categoryHandler *CategoryHandler) CreateCategory(writer http.ResponseWrite
 
 	if categoryInput.Name == ""{
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Category name required")
+		return
 	}
 
 	_, err = categoryHandler.DB.Exec("INSERT INTO categories (name) VALUES ($1)", categoryInput.Name)
 	if err != nil {
-		helper.SuccessResponse(writer, http.StatusCreated, map[string]interface{}{
-			"message": "Category created successfully",
-		})
+    helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+    return
 	}
+
+	helper.SuccessResponse(writer, http.StatusCreated, map[string]interface{}{
+		"message": "Category created successfully",
+	})
 }
 
 func (categoryHandler *CategoryHandler) DeleteCategory(writer http.ResponseWriter, request *http.Request){

@@ -29,7 +29,9 @@ func main() {
 	router.HandleFunc("/api/register", userHandler.Register).Methods("POST")
 	router.HandleFunc("/api/login", userHandler.Login).Methods("POST")
 
-	router.HandleFunc("/api/create-books", bookHandler.InsertBook).Methods("POST")
+	router.HandleFunc("/api/create-book", bookHandler.InsertBook).Methods("POST")
+	router.HandleFunc("/api/books", bookHandler.GetAllBooks).Methods("GET")
+	router.HandleFunc("/api/books/{id}", bookHandler.GetBookById).Methods("GET")
 
 	router.HandleFunc("/api/create-category", categoryHandler.CreateCategory).Methods("POST")
 	router.HandleFunc("/api/delete-category/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
