@@ -23,9 +23,16 @@ func main() {
 	router := mux.NewRouter()
 
 	userHandler := &handlers.UserHandler{DB: conn}
+	bookHandler := &handlers.BookHandler{DB:conn}
+	categoryHandler := &handlers.CategoryHandler{DB:conn}
 
 	router.HandleFunc("/api/register", userHandler.Register).Methods("POST")
 	router.HandleFunc("/api/login", userHandler.Login).Methods("POST")
+
+	router.HandleFunc("/api/create-books", bookHandler.InsertBook).Methods("POST")
+
+	router.HandleFunc("/api/create-category", categoryHandler.CreateCategory).Methods("POST")
+	router.HandleFunc("/api/delete-category/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
 
 	port := os.Getenv("PORT")
 	if port == ""{

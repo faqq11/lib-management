@@ -19,7 +19,16 @@ func (userHandler *UserHandler) Register(writer http.ResponseWriter, request *ht
 		Password string
 	}
 
-	json.NewDecoder(request.Body).Decode(&userReq)
+	err := json.NewDecoder(request.Body).Decode(&userReq)
+	if err != nil {
+			helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
+			return
+	}
+
+	if userReq.Username == "" || userReq.Password == "" {
+			helper.ErrorResponse(writer, http.StatusBadRequest, "Username and password are required")
+			return
+	}
 
 	hashed, err := helper.HashPassword(userReq.Password)
 	if err != nil {
