@@ -97,3 +97,138 @@ func (bookHandler *BookHandler) GetBookById(writer http.ResponseWriter, request 
 
 	helper.SuccessResponse(writer, http.StatusOK, book)
 }
+
+func (bookHandler *BookHandler) UpdateBook(writer http.ResponseWriter, request *http.Request){
+	vars := mux.Vars(request)
+	id := vars["id"]
+
+	bookId, err := strconv.Atoi(id)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
+		return 
+	}
+
+	var book models.Book
+
+	err = json.NewDecoder(request.Body).Decode(&book)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
+		return
+	}
+
+	result, err := bookHandler.DB.Exec(`
+	UPDATE books
+	SET title = $1,
+		author = $2,
+		category_id = $3,
+		stock = $4
+	WHERE id = $5
+	`, book.Title, book.Author, book.CategoryID, book.Stock, bookId)
+
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to update book")
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check update result")
+		return
+	}
+
+	if rowsAffected == 0 {
+		helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	helper.SuccessResponse(writer, http.StatusOK, map[string]string{
+		"message": "Book updated successfully",
+	})
+}
+
+func (bookHandler *BookHandler) IncreaseStock(writer http.ResponseWriter, request *http.Request){
+	vars := mux.Vars(request)
+	id := vars["id"]
+
+	bookId, err := strconv.Atoi(id)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
+		return
+	}
+
+	result, err := bookHandler.DB.Exec(`
+		UPDATE books
+		SET stock = stock + 1
+		WHERE id = $1
+	`, bookId)
+
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to update stock")
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check update result")
+		return
+	}
+
+	if rowsAffected == 0 {
+		helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	helper.SuccessResponse(writer, http.StatusOK, map[string]string{
+		"message": "Stock increased by 1",
+	})
+}
+
+func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, request *http.Request){
+	vars := mux.Vars(request)
+	id := vars["id"]
+
+	bookId, err := strconv.Atoi(id)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
+		return
+	}
+
+	var stock int
+
+	err = bookHandler.DB.Get(&stock, `SELECT stock FROM books WHERE id = $1`, bookId)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to fetch stock")
+		return
+	}
+
+	if stock <= 0{
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Stock is already 0, cannot decrease")
+		return 
+	}
+
+	result, err := bookHandler.DB.Exec(`
+		UPDATE books
+    SET stock = stock - 1
+    WHERE id = $1
+	`, bookId)
+
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to update stock")
+		return
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check update result")
+		return
+	}
+
+	if rowsAffected == 0 {
+		helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	helper.SuccessResponse(writer, http.StatusOK, map[string]string{
+		"message": "Stock decreased by 1",
+	})
+}
