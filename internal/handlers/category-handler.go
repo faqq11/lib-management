@@ -59,7 +59,7 @@ func (categoryHandler *CategoryHandler) DeleteCategory(writer http.ResponseWrite
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check created result")
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check deleted result")
 		return
 	}
 

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -16,30 +18,58 @@ type BookHandler struct {
 	DB *sqlx.DB
 }
 
-func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *http.Request) {
 	var bookInput models.Book
 
 	err := json.NewDecoder(request.Body).Decode(&bookInput)
 	if err != nil {
-			helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
-			return
-	}
-
-	if bookInput.Title == ""{
-			helper.ErrorResponse(writer, http.StatusBadRequest, "Title is required")
-			return
-	}
-
-	_, err = bookHandler.DB.Exec("INSERT INTO books (title, author, category_id, stock) VALUES ($1, $2, $3, $4)", bookInput.Title, bookInput.Author, bookInput.CategoryID, bookInput.Stock)
-	if err != nil {
-		helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
 		return
 	}
 
-	helper.SuccessResponse(writer, http.StatusCreated, map[string]interface{}{
-		"message": "Books created successfully",
+	if bookInput.Title == "" {
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Title is required")
+		return
+	}
+
+	var title string
+	err = bookHandler.DB.Get(&title, `SELECT title FROM books WHERE title = $1`, bookInput.Title)
+
+	if errors.Is(err, sql.ErrNoRows) {
+		_, err = bookHandler.DB.Exec(`
+			INSERT INTO books (title, author, category_id, stock)
+			VALUES ($1, $2, $3, $4)
+		`, bookInput.Title, bookInput.Author, bookInput.CategoryID, bookInput.Stock)
+		if err != nil {
+			helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		helper.SuccessResponse(writer, http.StatusCreated, map[string]interface{}{
+			"message": "Book created successfully",
+		})
+		return
+
+	} else if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Internal server error")
+		return
+	}
+
+	_, err = bookHandler.DB.Exec(`
+		UPDATE books
+		SET stock = stock + 1
+		WHERE title = $1
+	`, bookInput.Title)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to increase stock")
+		return
+	}
+
+	helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
+		"message": "Book already exists. Stock increased by 1",
 	})
 }
+
 
 func (bookHandler *BookHandler) GetAllBooks(writer http.ResponseWriter, request *http.Request){
 	var books []response.BookResponse
@@ -91,7 +121,12 @@ func (bookHandler *BookHandler) GetBookById(writer http.ResponseWriter, request 
 	WHERE b.id = $1
 	`, bookId)
 	if err != nil {
-		helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+			return
+		}
+
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -197,6 +232,10 @@ func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, reques
 
 	err = bookHandler.DB.Get(&stock, `SELECT stock FROM books WHERE id = $1`, bookId)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+			return
+		}
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to fetch stock")
 		return
 	}
@@ -230,5 +269,32 @@ func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, reques
 
 	helper.SuccessResponse(writer, http.StatusOK, map[string]string{
 		"message": "Stock decreased by 1",
+	})
+}
+
+func (bookHandler *BookHandler) DeleteBook(writer http.ResponseWriter, request *http.Request){
+	vars := mux.Vars(request)
+	id := vars["id"]
+
+	bookId, err := strconv.Atoi(id)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
+		return
+	}
+
+	result, err:=bookHandler.DB.Exec(`DELETE FROM books WHERE id = $1`, bookId)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check deleted book")
+		return
+	}
+
+  helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
+		"message": "Book deleted successfully",
 	})
 }
