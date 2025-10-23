@@ -15,30 +15,39 @@ type UserHandler struct {
 
 func (userHandler *UserHandler) Register(writer http.ResponseWriter, request *http.Request) {
 	var userReq struct {
-		Username string
-		Password string
+		Username string  `json:"username"`
+		Password string  `json:"password"`
+		Role     *string `json:"role,omitempty"`
 	}
 
 	err := json.NewDecoder(request.Body).Decode(&userReq)
 	if err != nil {
-			helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
-			return
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
+		return
 	}
 
 	if userReq.Username == "" || userReq.Password == "" {
-			helper.ErrorResponse(writer, http.StatusBadRequest, "Username and password are required")
-			return
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Username and password are required")
+		return
 	}
 
 	hashed, err := helper.HashPassword(userReq.Password)
 	if err != nil {
-		helper.ErrorResponse(writer, http.StatusBadRequest, "Hash error")
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to hash password")
 		return
+	}
+
+	if userReq.Role != nil{
+		_, err = userHandler.DB.Exec("INSERT INTO users (username, password) VALUES ($1, $2, $3)", userReq.Username, hashed, userReq.Role)
+		if err != nil{
+			helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 
 	_, err = userHandler.DB.Exec("INSERT INTO users (username, password) VALUES ($1, $2)", userReq.Username, hashed)
 	if err != nil {
-		helper.ErrorResponse(writer, http.StatusBadRequest, "Username already exist")
+		helper.ErrorResponse(writer, http.StatusConflict, "Username already exist")
 		return
 	}
 
@@ -49,41 +58,41 @@ func (userHandler *UserHandler) Register(writer http.ResponseWriter, request *ht
 
 func (userHandler *UserHandler) Login(writer http.ResponseWriter, request *http.Request) {
 	var userReq struct {
-			Username string `json:"username"`
-			Password string `json:"password"`
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
 
 	err := json.NewDecoder(request.Body).Decode(&userReq)
 	if err != nil {
-			helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
-			return
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
+		return
 	}
 
 	if userReq.Username == "" || userReq.Password == "" {
-			helper.ErrorResponse(writer, http.StatusBadRequest, "Username and password are required")
-			return
+		helper.ErrorResponse(writer, http.StatusBadRequest, "Username and password are required")
+		return
 	}
 
 	var user models.User
 	err = userHandler.DB.Get(&user, "SELECT id, username, password, role FROM users WHERE username=$1", userReq.Username)
 	if err != nil {
-			helper.ErrorResponse(writer, http.StatusUnauthorized, "invalid credentials")
-			return
+		helper.ErrorResponse(writer, http.StatusUnauthorized, "invalid credentials")
+		return
 	}
 
 	errPasswordCheck := helper.CheckPassword(user.Password, userReq.Password)
 	if errPasswordCheck != nil {
-			helper.ErrorResponse(writer, http.StatusUnauthorized, "invalid credentials")
-			return
+		helper.ErrorResponse(writer, http.StatusUnauthorized, "invalid credentials")
+		return
 	}
 
 	token, err := helper.GenerateJWT(user.ID, user.Username, user.Role)
 	if err != nil {
-			helper.ErrorResponse(writer, http.StatusInternalServerError, "Internal server error")
-			return
+		helper.ErrorResponse(writer, http.StatusInternalServerError, "Internal server error")
+		return
 	}
 
 	helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
-			"access_token": token,
+		"access_token": token,
 	})
 }

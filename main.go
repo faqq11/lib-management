@@ -39,6 +39,7 @@ func main() {
 
 	adminOnly.HandleFunc("/create-book", bookHandler.InsertBook).Methods("POST")
 	protected.HandleFunc("/books", bookHandler.GetAllBooks).Methods("GET")
+	protected.HandleFunc("/books/search", bookHandler.SearchBooks).Methods("GET")
 	protected.HandleFunc("/books/{id}", bookHandler.GetBookById).Methods("GET")
 	adminOnly.HandleFunc("/books/{id}", bookHandler.UpdateBook).Methods("PUT")
 	adminOnly.HandleFunc("/books/{id}/increase-stock", bookHandler.IncreaseStock).Methods("PUT")

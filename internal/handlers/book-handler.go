@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/faqq11/lib-management/internal/helper"
 	"github.com/faqq11/lib-management/internal/models"
@@ -296,4 +297,66 @@ func (bookHandler *BookHandler) DeleteBook(writer http.ResponseWriter, request *
   helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
 		"message": "Book deleted successfully",
 	})
+}
+
+func (bookHandler *BookHandler) SearchBooks(writer http.ResponseWriter, request *http.Request) {
+	title := request.URL.Query().Get("title")
+	categoryID := request.URL.Query().Get("category_id")
+	
+	var books []response.BookResponse
+	var args []interface{}
+	var conditions []string
+	
+	baseQuery := `
+		SELECT 
+			b.id, 
+			b.title, 
+			b.author, 
+			b.category_id,
+			c.name AS category,
+			b.stock, 
+			b.created_at
+		FROM books b
+		LEFT JOIN categories c ON b.category_id = c.id
+	`
+	
+	argIndex := 1
+	
+	if title != "" {
+		conditions = append(conditions, "b.title ILIKE $"+strconv.Itoa(argIndex))
+		args = append(args, "%"+title+"%")
+		argIndex++
+	}
+	
+	if categoryID != "" {
+		categoryIDInt, err := strconv.Atoi(categoryID)
+		if err != nil {
+			helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid category ID")
+			return
+		}
+		conditions = append(conditions, "b.category_id = $"+strconv.Itoa(argIndex))
+		args = append(args, categoryIDInt)
+		argIndex++
+	}
+	
+	finalQuery := baseQuery
+	if len(conditions) > 0 {
+		finalQuery += " WHERE " + strings.Join(conditions, " AND ")
+	}
+	finalQuery += " ORDER BY b.title"
+	
+	err := bookHandler.DB.Select(&books, finalQuery, args...)
+	if err != nil {
+		helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	if len(books) == 0 {
+		helper.SuccessResponse(writer, http.StatusOK, map[string]string{
+			"message": "No books found matching your search criteria",
+		})
+		return
+	}
+	
+	helper.SuccessResponse(writer, http.StatusOK, books)
 }
