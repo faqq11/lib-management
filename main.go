@@ -22,9 +22,10 @@ func main() {
 
 	router := mux.NewRouter()
 
-	registerHandler := &handlers.UserHandler{DB: conn}
+	userHandler := &handlers.UserHandler{DB: conn}
 
-	router.HandleFunc("/api/register", registerHandler.Register).Methods("POST")
+	router.HandleFunc("/api/register", userHandler.Register).Methods("POST")
+	router.HandleFunc("/api/login", userHandler.Login).Methods("POST")
 
 	port := os.Getenv("PORT")
 	if port == ""{
