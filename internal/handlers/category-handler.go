@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -14,26 +15,28 @@ type CategoryHandler struct {
 	DB *sqlx.DB
 }
 
-func (categoryHandler *CategoryHandler) CreateCategory(writer http.ResponseWriter, request *http.Request){
-	var categoryInput struct{
-		Name string
+func (categoryHandler *CategoryHandler) CreateCategory(writer http.ResponseWriter, request *http.Request) {
+	var categoryInput struct {
+		Name string `json:"name"`
 	}
 
 	err := json.NewDecoder(request.Body).Decode(&categoryInput)
 	if err != nil {
+		log.Printf("CreateCategory - JSON decode error: %v", err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
 		return
 	}
 
-	if categoryInput.Name == ""{
+	if categoryInput.Name == "" {
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Category name required")
 		return
 	}
 
 	_, err = categoryHandler.DB.Exec("INSERT INTO categories (name) VALUES ($1)", categoryInput.Name)
 	if err != nil {
-    helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
-    return
+		log.Printf("CreateCategory - Insert error: %v", err)
+		helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	helper.SuccessResponse(writer, http.StatusCreated, map[string]interface{}{
@@ -41,29 +44,31 @@ func (categoryHandler *CategoryHandler) CreateCategory(writer http.ResponseWrite
 	})
 }
 
-func (categoryHandler *CategoryHandler) DeleteCategory(writer http.ResponseWriter, request *http.Request){
+func (categoryHandler *CategoryHandler) DeleteCategory(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 
 	categoryId, err := strconv.Atoi(id)
 	if err != nil {
+		log.Printf("DeleteCategory - Invalid category ID: %s, error: %v", id, err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid category ID")
-		return 
+		return
 	}
 
 	result, err := categoryHandler.DB.Exec("DELETE FROM categories WHERE id = $1", categoryId)
 	if err != nil {
+		log.Printf("DeleteCategory - Delete error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
-		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check deleted result")
+		helper.ErrorResponse(writer, http.StatusNotFound, "Category not found")
 		return
 	}
 
-  helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
+	helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
 		"message": "Category deleted successfully",
 	})
 }

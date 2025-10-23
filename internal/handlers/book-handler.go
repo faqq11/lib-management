@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,6 +25,7 @@ func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *
 
 	err := json.NewDecoder(request.Body).Decode(&bookInput)
 	if err != nil {
+		log.Printf("InsertBook - JSON decode error: %v", err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
 		return
 	}
@@ -38,10 +40,11 @@ func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *
 
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = bookHandler.DB.Exec(`
-			INSERT INTO books (title, author, category_id, stock)
-			VALUES ($1, $2, $3, $4)
-		`, bookInput.Title, bookInput.Author, bookInput.CategoryID, bookInput.Stock)
+				INSERT INTO books (title, author, category_id, stock)
+				VALUES ($1, $2, $3, $4)
+			`, bookInput.Title, bookInput.Author, bookInput.CategoryID, bookInput.Stock)
 		if err != nil {
+			log.Printf("InsertBook - Insert error: %v", err)
 			helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -52,16 +55,18 @@ func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *
 		return
 
 	} else if err != nil {
+		log.Printf("InsertBook - Database error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	_, err = bookHandler.DB.Exec(`
-		UPDATE books
-		SET stock = stock + 1
-		WHERE title = $1
-	`, bookInput.Title)
+			UPDATE books
+			SET stock = stock + 1
+			WHERE title = $1
+    `, bookInput.Title)
 	if err != nil {
+		log.Printf("InsertBook - Update stock error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to increase stock")
 		return
 	}
@@ -71,7 +76,7 @@ func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *
 	})
 }
 
-func (bookHandler *BookHandler) GetAllBooks(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) GetAllBooks(writer http.ResponseWriter, request *http.Request) {
 	var books []response.BookResponse
 
 	err := bookHandler.DB.Select(&books, `
@@ -87,45 +92,48 @@ func (bookHandler *BookHandler) GetAllBooks(writer http.ResponseWriter, request 
 		LEFT JOIN categories c ON b.category_id = c.id
 		ORDER BY b.id;
     `)
-    if err != nil {
-        helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
-        return
-    }
+	if err != nil {
+		log.Printf("GetAllBooks - Select error: %v", err)
+		helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
+		return
+	}
 
-    helper.SuccessResponse(writer, http.StatusOK, books)
+	helper.SuccessResponse(writer, http.StatusOK, books)
 }
 
-func (bookHandler *BookHandler) GetBookById(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) GetBookById(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 
 	bookId, err := strconv.Atoi(id)
 	if err != nil {
+		log.Printf("GetBookById - Invalid ID: %s, error: %v", id, err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
-		return 
+		return
 	}
 
 	var book response.BookResponse
 
 	err = bookHandler.DB.Get(&book, `
-	SELECT 
-		b.id, 
-		b.title, 
-		b.author, 
-		b.category_id,
-		c.name AS category,
-		b.stock, 
-		b.created_at
-	FROM books b
-	JOIN categories c ON b.category_id = c.id
-	WHERE b.id = $1
-	`, bookId)
+    SELECT 
+			b.id, 
+			b.title, 
+			b.author, 
+			b.category_id,
+			c.name AS category,
+			b.stock, 
+			b.created_at
+    FROM books b
+    JOIN categories c ON b.category_id = c.id
+    WHERE b.id = $1
+    `, bookId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
 			return
 		}
 
+		log.Printf("GetBookById - Database error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Internal server error")
 		return
 	}
@@ -133,40 +141,44 @@ func (bookHandler *BookHandler) GetBookById(writer http.ResponseWriter, request 
 	helper.SuccessResponse(writer, http.StatusOK, book)
 }
 
-func (bookHandler *BookHandler) UpdateBook(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) UpdateBook(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 
 	bookId, err := strconv.Atoi(id)
 	if err != nil {
+		log.Printf("UpdateBook - Invalid ID: %s, error: %v", id, err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
-		return 
+		return
 	}
 
 	var book models.Book
 
 	err = json.NewDecoder(request.Body).Decode(&book)
 	if err != nil {
+		log.Printf("UpdateBook - JSON decode error: %v", err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid JSON format")
 		return
 	}
 
 	result, err := bookHandler.DB.Exec(`
-	UPDATE books
-	SET title = $1,
-		author = $2,
-		category_id = $3,
-		stock = $4
-	WHERE id = $5
-	`, book.Title, book.Author, book.CategoryID, book.Stock, bookId)
+    UPDATE books
+    SET title = $1,
+        author = $2,
+        category_id = $3,
+        stock = $4
+    WHERE id = $5
+    `, book.Title, book.Author, book.CategoryID, book.Stock, bookId)
 
 	if err != nil {
+		log.Printf("UpdateBook - Update error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to update book")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		log.Printf("UpdateBook - RowsAffected error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check update result")
 		return
 	}
@@ -181,12 +193,13 @@ func (bookHandler *BookHandler) UpdateBook(writer http.ResponseWriter, request *
 	})
 }
 
-func (bookHandler *BookHandler) IncreaseStock(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) IncreaseStock(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 
 	bookId, err := strconv.Atoi(id)
 	if err != nil {
+		log.Printf("IncreaseStock - Invalid ID: %s, error: %v", id, err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
 		return
 	}
@@ -198,12 +211,14 @@ func (bookHandler *BookHandler) IncreaseStock(writer http.ResponseWriter, reques
 	`, bookId)
 
 	if err != nil {
+		log.Printf("IncreaseStock - Update error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to update stock")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		log.Printf("IncreaseStock - RowsAffected error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check update result")
 		return
 	}
@@ -218,12 +233,13 @@ func (bookHandler *BookHandler) IncreaseStock(writer http.ResponseWriter, reques
 	})
 }
 
-func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 
 	bookId, err := strconv.Atoi(id)
 	if err != nil {
+		log.Printf("DecreaseStock - Invalid ID: %s, error: %v", id, err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
 		return
 	}
@@ -236,28 +252,31 @@ func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, reques
 			helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
 			return
 		}
+		log.Printf("DecreaseStock - Select stock error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to fetch stock")
 		return
 	}
 
-	if stock <= 0{
+	if stock <= 0 {
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Stock is already 0, cannot decrease")
-		return 
+		return
 	}
 
 	result, err := bookHandler.DB.Exec(`
 		UPDATE books
     SET stock = stock - 1
     WHERE id = $1
-	`, bookId)
+    `, bookId)
 
 	if err != nil {
+		log.Printf("DecreaseStock - Update error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to update stock")
 		return
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
+		log.Printf("DecreaseStock - RowsAffected error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, "Failed to check update result")
 		return
 	}
@@ -272,18 +291,20 @@ func (bookHandler *BookHandler) DecreaseStock(writer http.ResponseWriter, reques
 	})
 }
 
-func (bookHandler *BookHandler) DeleteBook(writer http.ResponseWriter, request *http.Request){
+func (bookHandler *BookHandler) DeleteBook(writer http.ResponseWriter, request *http.Request) {
 	vars := mux.Vars(request)
 	id := vars["id"]
 
 	bookId, err := strconv.Atoi(id)
 	if err != nil {
+		log.Printf("DeleteBook - Invalid ID: %s, error: %v", id, err)
 		helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid book ID")
 		return
 	}
 
-	result, err:=bookHandler.DB.Exec(`DELETE FROM books WHERE id = $1`, bookId)
+	result, err := bookHandler.DB.Exec(`DELETE FROM books WHERE id = $1`, bookId)
 	if err != nil {
+		log.Printf("DeleteBook - Delete error: %v", err)
 		helper.ErrorResponse(writer, http.StatusNotFound, "Book not found")
 		return
 	}
@@ -294,7 +315,7 @@ func (bookHandler *BookHandler) DeleteBook(writer http.ResponseWriter, request *
 		return
 	}
 
-  helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
+	helper.SuccessResponse(writer, http.StatusOK, map[string]interface{}{
 		"message": "Book deleted successfully",
 	})
 }
@@ -302,11 +323,11 @@ func (bookHandler *BookHandler) DeleteBook(writer http.ResponseWriter, request *
 func (bookHandler *BookHandler) SearchBooks(writer http.ResponseWriter, request *http.Request) {
 	title := request.URL.Query().Get("title")
 	categoryID := request.URL.Query().Get("category_id")
-	
+
 	var books []response.BookResponse
 	var args []interface{}
 	var conditions []string
-	
+
 	baseQuery := `
 		SELECT 
 			b.id, 
@@ -319,18 +340,19 @@ func (bookHandler *BookHandler) SearchBooks(writer http.ResponseWriter, request 
 		FROM books b
 		LEFT JOIN categories c ON b.category_id = c.id
 	`
-	
+
 	argIndex := 1
-	
+
 	if title != "" {
 		conditions = append(conditions, "b.title ILIKE $"+strconv.Itoa(argIndex))
 		args = append(args, "%"+title+"%")
 		argIndex++
 	}
-	
+
 	if categoryID != "" {
 		categoryIDInt, err := strconv.Atoi(categoryID)
 		if err != nil {
+			log.Printf("SearchBooks - Invalid category ID: %s, error: %v", categoryID, err)
 			helper.ErrorResponse(writer, http.StatusBadRequest, "Invalid category ID")
 			return
 		}
@@ -338,15 +360,16 @@ func (bookHandler *BookHandler) SearchBooks(writer http.ResponseWriter, request 
 		args = append(args, categoryIDInt)
 		argIndex++
 	}
-	
+
 	finalQuery := baseQuery
 	if len(conditions) > 0 {
 		finalQuery += " WHERE " + strings.Join(conditions, " AND ")
 	}
 	finalQuery += " ORDER BY b.title"
-	
+
 	err := bookHandler.DB.Select(&books, finalQuery, args...)
 	if err != nil {
+		log.Printf("SearchBooks - Select error: %v", err)
 		helper.ErrorResponse(writer, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -357,6 +380,6 @@ func (bookHandler *BookHandler) SearchBooks(writer http.ResponseWriter, request 
 		})
 		return
 	}
-	
+
 	helper.SuccessResponse(writer, http.StatusOK, books)
 }

@@ -1,1 +1,1 @@
-# lib-management
+# library-management

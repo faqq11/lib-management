@@ -24,12 +24,12 @@ func main() {
 	router := mux.NewRouter()
 
 	userHandler := &handlers.UserHandler{DB: conn}
-	bookHandler := &handlers.BookHandler{DB:conn}
-	categoryHandler := &handlers.CategoryHandler{DB:conn}
-	borrowHandler := &handlers.BorrowHandler{DB:conn}
+	bookHandler := &handlers.BookHandler{DB: conn}
+	categoryHandler := &handlers.CategoryHandler{DB: conn}
+	borrowHandler := &handlers.BorrowHandler{DB: conn}
 
 	protected := router.PathPrefix("/api").Subrouter()
-  protected.Use(middleware.AuthMiddleware)
+	protected.Use(middleware.AuthMiddleware)
 
 	adminOnly := protected.PathPrefix("").Subrouter()
 	adminOnly.Use(middleware.AdminOnlyMiddleware)
@@ -49,13 +49,14 @@ func main() {
 	adminOnly.HandleFunc("/create-category", categoryHandler.CreateCategory).Methods("POST")
 	adminOnly.HandleFunc("/delete-category/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
 
+	protected.HandleFunc("/my-borrowings", borrowHandler.GetUserBorrowings).Methods("GET")
 	protected.HandleFunc("/books/{id}/borrow", borrowHandler.BorrowBook).Methods("POST")
-	protected.HandleFunc("/return-book/{id}", borrowHandler.ReturnBook).Methods("PUT")
+	protected.HandleFunc("/borrowings/{id}/return", borrowHandler.ReturnBook).Methods("PUT")
 
 	port := os.Getenv("PORT")
-	if port == ""{
+	if port == "" {
 		port = "8080"
 	}
 	log.Printf("listening on %s", port)
-	log.Fatal(http.ListenAndServe(":" + port, router))
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }
