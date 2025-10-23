@@ -70,7 +70,6 @@ func (bookHandler *BookHandler) InsertBook(writer http.ResponseWriter, request *
 	})
 }
 
-
 func (bookHandler *BookHandler) GetAllBooks(writer http.ResponseWriter, request *http.Request){
 	var books []response.BookResponse
 

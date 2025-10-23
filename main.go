@@ -7,6 +7,7 @@ import (
 
 	"github.com/faqq11/lib-management/internal/db"
 	"github.com/faqq11/lib-management/internal/handlers"
+	"github.com/faqq11/lib-management/internal/middleware"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 )
@@ -25,20 +26,30 @@ func main() {
 	userHandler := &handlers.UserHandler{DB: conn}
 	bookHandler := &handlers.BookHandler{DB:conn}
 	categoryHandler := &handlers.CategoryHandler{DB:conn}
+	borrowHandler := &handlers.BorrowHandler{DB:conn}
+
+	protected := router.PathPrefix("/api").Subrouter()
+  protected.Use(middleware.AuthMiddleware)
+
+	adminOnly := protected.PathPrefix("").Subrouter()
+	adminOnly.Use(middleware.AdminOnlyMiddleware)
 
 	router.HandleFunc("/api/register", userHandler.Register).Methods("POST")
 	router.HandleFunc("/api/login", userHandler.Login).Methods("POST")
 
-	router.HandleFunc("/api/create-book", bookHandler.InsertBook).Methods("POST")
-	router.HandleFunc("/api/books", bookHandler.GetAllBooks).Methods("GET")
-	router.HandleFunc("/api/books/{id}", bookHandler.GetBookById).Methods("GET")
-	router.HandleFunc("/api/books/{id}", bookHandler.UpdateBook).Methods("PUT")
-	router.HandleFunc("/api/books/{id}/increase-stock", bookHandler.IncreaseStock).Methods("PUT")
-	router.HandleFunc("/api/books/{id}/decrease-stock", bookHandler.DecreaseStock).Methods("PUT")
-	router.HandleFunc("/api/books/{id}/delete", bookHandler.DeleteBook).Methods("DELETE")
+	adminOnly.HandleFunc("/create-book", bookHandler.InsertBook).Methods("POST")
+	protected.HandleFunc("/books", bookHandler.GetAllBooks).Methods("GET")
+	protected.HandleFunc("/books/{id}", bookHandler.GetBookById).Methods("GET")
+	adminOnly.HandleFunc("/books/{id}", bookHandler.UpdateBook).Methods("PUT")
+	adminOnly.HandleFunc("/books/{id}/increase-stock", bookHandler.IncreaseStock).Methods("PUT")
+	adminOnly.HandleFunc("/books/{id}/decrease-stock", bookHandler.DecreaseStock).Methods("PUT")
+	adminOnly.HandleFunc("/books/{id}/delete", bookHandler.DeleteBook).Methods("DELETE")
 
-	router.HandleFunc("/api/create-category", categoryHandler.CreateCategory).Methods("POST")
-	router.HandleFunc("/api/delete-category/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
+	adminOnly.HandleFunc("/create-category", categoryHandler.CreateCategory).Methods("POST")
+	adminOnly.HandleFunc("/delete-category/{id}", categoryHandler.DeleteCategory).Methods("DELETE")
+
+	protected.HandleFunc("/books/{id}/borrow", borrowHandler.BorrowBook).Methods("POST")
+	protected.HandleFunc("/return-book/{id}", borrowHandler.ReturnBook).Methods("PUT")
 
 	port := os.Getenv("PORT")
 	if port == ""{
