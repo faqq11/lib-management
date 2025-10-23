@@ -17,6 +17,6 @@ type UserBorrowingResponse struct {
 	BookTitle  string     `db:"book_title" json:"book_title"`
 	Author     string     `db:"author" json:"author"`
 	BorrowedAt time.Time  `db:"borrowed_at" json:"borrowed_at"`
-	ReturnedAt *time.Time `db:"returned_at" json:"returned_at"` // pakai pointer karena bisa NULL
+	ReturnedAt *time.Time `db:"returned_at" json:"returned_at"`
 	Status     string     `db:"status" json:"status"`
 }
